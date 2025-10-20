@@ -1,0 +1,87 @@
+name: build-signserver
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      qq_deb_url:
+        description: "QQ for Linux 的 .deb 安装包直链（留空将使用默认链接）"
+        required: false
+        type: string
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  DEFAULT_QQ_DEB_URL: https://dldir1v6.qq.com/qqfile/qq/QQNT/c773cdf7/linuxqq_3.2.19-39038_amd64.deb
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential gcc pkg-config \
+               binutils xz-utils patchelf curl
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Download and extract wrapper.node
+        shell: bash
+        run: |
+          set -eux
+          # 判断是否指定了下载地址，否则用默认的
+          QQ_DEB_URL="${{ github.event.inputs.qq_deb_url || env.DEFAULT_QQ_DEB_URL }}"
+          echo "Downloading from: $QQ_DEB_URL"
+          curl -L "$QQ_DEB_URL" -o linuxqq.deb
+
+          # 解出 wrapper.node
+          ar -p linuxqq.deb data.tar.xz | tar -xJ ./opt/QQ/resources/app/wrapper.node -O > wrapper.node
+          rm linuxqq.deb
+
+          # 处理依赖
+          patchelf \
+            --remove-needed libbugly.so \
+            --remove-needed libX11.so.6 \
+            --remove-needed libX11-xcb.so.1 \
+            --remove-needed libXext.so.6 \
+            --remove-needed libvips-cpp.so.42 \
+            --add-needed libstdc++.so.6 \
+            --add-needed libsymbols.so \
+            wrapper.node
+
+      - name: Build libsymbols.so
+        run: |
+          gcc -std=c99 -shared -fPIC -o libsymbols.so symbols.c
+
+      - name: Build release binary
+        run: cargo build --release
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: signserver-build
+          path: |
+            target/release/*
+            libsymbols.so
+            wrapper.node
+            sign.config.toml
