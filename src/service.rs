@@ -66,6 +66,10 @@ async fn sign_common(params: Params) -> Result<Response> {
     Ok(resp)
 }
 
+#[web::get("/ping")]
+pub(crate) async fn ping() -> Response {
+    web::HttpResponse::Ok().body("ok")
+}
 #[web::get("/appinfo")]
 pub(crate) async fn appinfo() -> Result<Response> {
     let path = &format!("{}.json", CONFIG.version.clone());
