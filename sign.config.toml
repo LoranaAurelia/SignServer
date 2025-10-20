@@ -1,4 +1,4 @@
 module_path = "./wrapper.node"
 listen = "127.0.0.1:8080"
-offset = 0x5ADE220
-version = "3.2.19-39038"
+offset = 0x5C71D20
+version = "3.2.20-40768"
