@@ -24,6 +24,7 @@ async fn main() -> std::io::Result<()> {
             .service(service::sign_get)
             .service(service::sign_post)
             .service(service::appinfo)
+            .service(service::ping)
     })
     .bind(CONFIG.listen.clone())?
     .run()
